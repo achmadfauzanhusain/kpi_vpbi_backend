@@ -1,0 +1,203 @@
+const db = require("../config/connection");
+
+// Create history with details + weighted calculation
+async function createHistoryWithDetails(data) {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Insert ke history_kpi (sementara nilai_akhir & persen_akhir 0)
+    const [historyResult] = await conn.execute(
+      `INSERT INTO history_kpi (user_id, periode, user_id_acc, nilai_akhir, persen_akhir, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+      [data.user_id, data.periode, data.user_id_acc, 0, 0]
+    );
+
+    const historyId = historyResult.insertId;
+
+    // Ambil semua KPI_id yang dikirim user
+    const kpiIds = data.details.map((d) => d.kpi_id);
+
+    // Ambil bobot KPI dari tabel kpi
+    const [kpis] = await conn.query(
+      `SELECT kpi_id, bobot FROM master_kpi WHERE kpi_id IN (?)`,
+      [kpiIds]
+    );
+
+    // Map bobot KPI
+    const bobotMap = {};
+    kpis.forEach((kpi) => {
+      bobotMap[kpi.kpi_id] = kpi.bobot;
+    });
+
+    let totalNilai = 0;
+    let totalPersen = 0;
+
+    // Insert detail + hitung nilai akhir berdasarkan bobot
+    for (const d of data.details) {
+      const bobot = bobotMap[d.kpi_id] || 0;
+
+      await conn.execute(
+        `INSERT INTO history_kpi_detail (history_kpi_id, kpi_id, nilai_real, persen_real, created_at) 
+         VALUES (?, ?, ?, ?, NOW())`,
+        [historyId, d.kpi_id, d.nilai_real, d.persen_real]
+      );
+
+      totalNilai += d.nilai_real * (bobot / 100);
+      totalPersen += d.persen_real * (bobot / 100);
+    }
+
+    // Update nilai_akhir & persen_akhir di history_kpi
+    await conn.execute(
+      `UPDATE history_kpi SET nilai_akhir = ?, persen_akhir = ? WHERE history_id = ?`,
+      [totalNilai, totalPersen, historyId]
+    );
+
+    await conn.commit();
+    return {
+      id: historyId,
+      ...data,
+      nilai_akhir: totalNilai,
+      persen_akhir: totalPersen,
+    };
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error createHistoryWithDetails:", error);
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
+// LIST HISTORY KPI DENGAN FILTER
+async function listHistory(filters = {}) {
+  const {
+    periode_from,
+    periode_to,
+    divisi_id,
+    user_id,
+    search,
+    jabatan,
+    limit = 20,
+    offset = 0,
+  } = filters;
+
+  const where = [];
+  const params = [];
+
+  if (periode_from) {
+    where.push("hk.periode >= ?");
+    params.push(periode_from);
+  }
+  if (periode_to) {
+    where.push("hk.periode <= ?");
+    params.push(periode_to);
+  }
+  if (user_id) {
+    where.push("hk.user_id = ?");
+    params.push(user_id);
+  }
+  if (divisi_id) {
+    where.push("u.divisi_id = ?");
+    params.push(divisi_id);
+  }
+  if (jabatan) {
+    where.push("u.jabatan = ?");
+    params.push(jabatan);
+  }
+  if (search) {
+    where.push("(u.fullname LIKE ? OR u.email LIKE ?)");
+    params.push(`%${search}%`, `%${search}%`);
+  }
+
+  const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const sql = `
+    SELECT hk.history_id, hk.user_id, hk.periode, hk.nilai_akhir, hk.persen_akhir,
+           hk.user_id_acc, hk.created_at, hk.updated_at,
+           u.fullname, u.email, u.jabatan, u.divisi_id,
+           ua.fullname AS admin_fullname, ua.email AS admin_email
+    FROM history_kpi hk
+    JOIN users u ON u.user_id = hk.user_id
+    LEFT JOIN users ua ON ua.user_id = hk.user_id_acc
+    ${whereSQL}
+    ORDER BY hk.periode DESC, hk.created_at DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const countSql = `
+    SELECT COUNT(1) as total
+    FROM history_kpi hk
+    JOIN users u ON u.user_id = hk.user_id
+    ${whereSQL}
+  `;
+
+  const execParams = [...params, Number(limit), Number(offset)];
+
+  const [rows] = await db.execute(sql, execParams);
+  const [countRows] = await db.execute(countSql, params);
+
+  const total = countRows[0] ? Number(countRows[0].total) : 0;
+
+  return { rows, total };
+}
+
+// GET DETAIL HISTORY (BY ID)
+async function getHistoryDetail(history_id) {
+  const sql = `
+    SELECT hk.history_id, hk.user_id, hk.periode, hk.nilai_akhir, hk.persen_akhir,
+           hk.user_id_acc, hk.created_at, hk.updated_at,
+           u.fullname, u.email, u.jabatan, u.divisi_id,
+           ua.fullname AS admin_fullname, ua.email AS admin_email,
+           hkd.history_detail_id, hkd.kpi_id, hkd.nilai_real, hkd.persen_real,
+           mk.indikator, mk.satuan, mk.target, mk.bobot
+    FROM history_kpi hk
+    JOIN users u ON u.user_id = hk.user_id
+    LEFT JOIN users ua ON ua.user_id = hk.user_id_acc
+    LEFT JOIN history_kpi_detail hkd ON hkd.history_kpi_id = hk.history_id
+    LEFT JOIN master_kpi mk ON mk.kpi_id = hkd.kpi_id
+    WHERE hk.history_id = ?
+  `;
+
+  const [rows] = await db.execute(sql, [history_id]);
+
+  if (!rows.length) return null;
+
+  const header = {
+    history_id: rows[0].history_id,
+    user_id: rows[0].user_id,
+    periode: rows[0].periode,
+    nilai_akhir: rows[0].nilai_akhir,
+    persen_akhir: rows[0].persen_akhir,
+    user_id_acc: rows[0].user_id_acc,
+    created_at: rows[0].created_at,
+    updated_at: rows[0].updated_at,
+    fullname: rows[0].fullname,
+    email: rows[0].email,
+    jabatan: rows[0].jabatan,
+    divisi_id: rows[0].divisi_id,
+    admin_fullname: rows[0].admin_fullname,
+    admin_email: rows[0].admin_email,
+  };
+
+  const details = rows
+    .filter((r) => r.history_detail_id)
+    .map((r) => ({
+      history_detail_id: r.history_detail_id,
+      kpi_id: r.kpi_id,
+      nilai_real: r.nilai_real,
+      persen_real: r.persen_real,
+      bobot: r.bobot,
+      target: r.target,
+      indikator: r.indikator,
+      satuan: r.satuan,
+    }));
+
+  return { ...header, details };
+}
+
+module.exports = {
+  listHistory,
+  createHistoryWithDetails,
+  getHistoryDetail,
+};

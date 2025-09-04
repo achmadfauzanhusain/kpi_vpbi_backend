@@ -4,9 +4,17 @@ require("dotenv").config();
 const authRoutes = require("./routes/authRoutes");
 const karyawanRoutes = require("./routes/karyawanRoutes");
 const divisiRoutes = require("./routes/divisiRoutes");
+const historyKpiRoutes = require("./routes/historyKpiRoutes");
+const masterKpiRoutes = require("./routes/masterKpiRoutes");
 
 const app = express();
 app.use(express.json());
+
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/divisi", divisiRoutes);
+app.use("/api/laporan-kpi", historyKpiRoutes);
+app.use("/api/master-kpi", masterKpiRoutes);
 
 app.use("/api/auth", authRoutes)
 app.use("/api/divisi", divisiRoutes)
