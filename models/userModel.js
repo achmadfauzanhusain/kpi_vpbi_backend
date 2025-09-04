@@ -2,7 +2,9 @@ const db = require("../config/connection");
 
 const User = {
   findByEmail: async (email) => {
-    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
     return rows[0];
   },
 
@@ -12,7 +14,9 @@ const User = {
       [fullname, email, hashedPassword, role, jabatan, divisi_id]
     );
     return result.insertId;
-  }
+  },
+
+  // getAllUser:
 };
 
 module.exports = User;
