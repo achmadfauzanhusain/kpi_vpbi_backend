@@ -8,17 +8,24 @@ const historyKpiRoutes = require("./routes/historyKpiRoutes");
 const masterKpiRoutes = require("./routes/masterKpiRoutes");
 
 const app = express();
+const cors = require("cors");
 app.use(express.json());
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // asal frontend kamu
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true, // kalau pakai cookie/session
+  })
+);
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/divisi", divisiRoutes);
+app.use("/api/karyawan", karyawanRoutes);
 app.use("/api/laporan-kpi", historyKpiRoutes);
 app.use("/api/master-kpi", masterKpiRoutes);
-
-app.use("/api/auth", authRoutes)
-app.use("/api/divisi", divisiRoutes)
-app.use("/api/karyawan", karyawanRoutes)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

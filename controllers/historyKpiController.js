@@ -1,12 +1,11 @@
 const HistoryKpi = require("../models/historyKpiModel");
+const db = require("../config/connection");
+const { sendMail, newDataNotificationTemplate } = require("../config/mailer");
 
 // Create History (Admin / Superadmin)
 const createHistory = async (req, res) => {
   try {
     const { user_id, periode, user_id_acc, details } = req.body;
-
-    console.log("REQ BODY:", req.body); // cek seluruh payload
-    console.log("DETAILS:", details); // cek array details
 
     if (
       !user_id ||
@@ -18,7 +17,7 @@ const createHistory = async (req, res) => {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
-    // panggil model dengan single object
+    // Simpan ke DB lewat model
     const history = await HistoryKpi.createHistoryWithDetails({
       user_id,
       periode,
@@ -26,9 +25,38 @@ const createHistory = async (req, res) => {
       details,
     });
 
+    // ✅ Ambil email user setelah data berhasil disimpan
+    let userEmail = null;
+    let userNama = null;
+
+    try {
+      const [userRows] = await db.execute(
+        `SELECT email, fullname FROM users WHERE user_id = ?`,
+        [user_id]
+      );
+      if (userRows.length > 0) {
+        userEmail = userRows[0].email;
+        userNama = userRows[0].fullname;
+
+        // Kirim email notifikasi 📧
+        await sendMail({
+          to: userEmail,
+          subject: "📢 KPI Baru Ditambahkan",
+          text: `Halo ${userNama}, KPI Anda untuk periode ${periode} sudah ditambahkan.`,
+          html: newDataNotificationTemplate({
+            title: `Halo ${userNama},`,
+            description: `KPI Anda untuk periode <b>${periode}</b> sudah berhasil ditambahkan.`,
+            createdBy: user_id_acc || "Admin",
+          }),
+        });
+      }
+    } catch (mailErr) {
+      console.error("Gagal mengirim email:", mailErr);
+    }
+
     res.status(201).json({
       message: "History created successfully",
-      data: history,
+      data: { ...history, email_terkirim: !!userEmail },
     });
   } catch (err) {
     console.error("Error createHistory:", err);

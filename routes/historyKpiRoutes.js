@@ -19,7 +19,7 @@ router.post(
 router.get(
   "/",
   authenticateToken,
-  authorizeRoles(["superadmin", "admin", "staff"]),
+  authorizeRoles(["superadmin", "admin", "karyawan"]),
   ctrl.listHistory
 );
 
@@ -27,7 +27,7 @@ router.get(
 router.get(
   "/:id",
   authenticateToken,
-  authorizeRoles(["superadmin", "admin", "staff"]),
+  authorizeRoles(["superadmin", "admin", "karyawan"]),
   ctrl.getHistoryDetail
 );
 
