@@ -1,8 +1,29 @@
 const express = require("express");
 const router = express.Router();
-const { getAllKaryawan, getKaryawanById } = require("../controllers/karyawanController");
+const ctrl = require("../controllers/karyawanController");
+const {
+  authenticateToken,
+  authorizeRoles,
+} = require("../middlewares/authMiddleware");
 
-router.get("/", getAllKaryawan);
-router.get("/:id", getKaryawanById);
+router.use(authenticateToken);
+
+router.get("/", authorizeRoles(["admin", "superadmin"]), ctrl.getAllKaryawan);
+router.get(
+  "/:id",
+  authorizeRoles(["admin", "superadmin", "karyawan"]),
+  ctrl.getKaryawanById
+);
+router.post("/add", authorizeRoles(["admin", "superadmin"]), ctrl.addKaryawan);
+router.put(
+  "/update/:id",
+  authorizeRoles(["admin", "superadmin", "karyawan"]),
+  ctrl.updateKaryawan
+);
+router.delete(
+  "/delete/:id",
+  authorizeRoles(["admin", "superadmin"]),
+  ctrl.deleteKaryawan
+);
 
 module.exports = router;
