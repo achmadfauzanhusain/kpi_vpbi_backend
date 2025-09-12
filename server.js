@@ -24,7 +24,7 @@ app.use(
 app.use("/api/auth", authRoutes);
 app.use("/api/divisi", divisiRoutes);
 app.use("/api/karyawan", karyawanRoutes);
-app.use("/api/laporan-kpi", historyKpiRoutes);
+app.use("/api/history-kpi", historyKpiRoutes);
 app.use("/api/master-kpi", masterKpiRoutes);
 
 const PORT = process.env.PORT || 5000;

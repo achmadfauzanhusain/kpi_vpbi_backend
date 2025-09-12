@@ -67,10 +67,20 @@ const createHistory = async (req, res) => {
   }
 };
 
-// Get All Histories
+// Get All Histories (Role-based filter)
 const listHistory = async (req, res) => {
   try {
-    const histories = await HistoryKpi.listHistory();
+    const { role, user_id, divisi_id } = req.user; // dari JWT
+
+    let filters = req.query || {};
+
+    if (role === "admin") {
+      filters.divisi_id = divisi_id;
+    } else if (role === "karyawan") {
+      filters.user_id = user_id;
+    }
+
+    const histories = await HistoryKpi.listHistory(filters);
 
     res.status(200).json({
       message: "Histories fetched successfully",
