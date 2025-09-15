@@ -6,6 +6,10 @@ const database = mysql.createPool({
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT,
+  // host: "localhost",
+  // user: "root",
+  // password: "",
+  // database: process.env.DB_NAME,
 });
 
 module.exports = database;
