@@ -1,11 +1,8 @@
-# Node modules
-node_modules/
+# dependencies
+/node_modules
 
-# Environment variables
+# env files
 .env
 
-# Logs
-*.log
-
-# Vercel / deployment
-.vercel/
+# Vercel
+vercel.json
