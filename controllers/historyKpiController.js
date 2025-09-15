@@ -25,20 +25,16 @@ const createHistory = async (req, res) => {
       details,
     });
 
-    // ✅ Ambil email user setelah data berhasil disimpan
-    let userEmail = null;
-    let userNama = null;
-
+    // Ambil email user (optional, bisa gagal tanpa stop proses utama)
     try {
       const [userRows] = await db.execute(
         `SELECT email, fullname FROM users WHERE user_id = ?`,
         [user_id]
       );
-      if (userRows.length > 0) {
-        userEmail = userRows[0].email;
-        userNama = userRows[0].fullname;
 
-        // Kirim email notifikasi 📧
+      if (userRows.length > 0) {
+        const { email: userEmail, fullname: userNama } = userRows[0];
+
         await sendMail({
           to: userEmail,
           subject: "📢 KPI Baru Ditambahkan",
@@ -56,7 +52,7 @@ const createHistory = async (req, res) => {
 
     res.status(201).json({
       message: "History created successfully",
-      data: { ...history, email_terkirim: !!userEmail },
+      data: history,
     });
   } catch (err) {
     console.error("Error createHistory:", err);
@@ -70,21 +66,35 @@ const createHistory = async (req, res) => {
 // Get All Histories (Role-based filter)
 const listHistory = async (req, res) => {
   try {
-    const { role, user_id, divisi_id } = req.user; // dari JWT
+    const { role, user_id, divisi_id } = req.user || {};
+    let filters = { ...req.query };
 
-    let filters = req.query || {};
-
-    if (role === "admin") {
+    // Role-based filter
+    if (role === "admin" && divisi_id) {
       filters.divisi_id = divisi_id;
-    } else if (role === "karyawan") {
+    } else if (role === "karyawan" && user_id) {
       filters.user_id = user_id;
     }
+
+    // Sanitize filters (hapus key yang kosong/null/undefined)
+    Object.keys(filters).forEach((key) => {
+      if (
+        filters[key] === undefined ||
+        filters[key] === null ||
+        filters[key] === "" ||
+        filters[key] === "null" ||
+        filters[key] === "undefined"
+      ) {
+        delete filters[key];
+      }
+    });
 
     const histories = await HistoryKpi.listHistory(filters);
 
     res.status(200).json({
       message: "Histories fetched successfully",
-      data: histories,
+      data: histories.rows || [],
+      total: histories.total || 0,
     });
   } catch (err) {
     console.error("Error listHistory:", err);

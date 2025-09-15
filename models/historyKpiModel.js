@@ -6,7 +6,6 @@ async function createHistoryWithDetails(data) {
   try {
     await conn.beginTransaction();
 
-    // Insert ke history_kpi (sementara nilai_akhir & persen_akhir 0)
     const [historyResult] = await conn.execute(
       `INSERT INTO history_kpi (user_id, periode, user_id_acc, nilai_akhir, persen_akhir, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -15,16 +14,13 @@ async function createHistoryWithDetails(data) {
 
     const historyId = historyResult.insertId;
 
-    // Ambil semua KPI_id yang dikirim user
-    const kpiIds = data.details.map((d) => d.kpi_id);
-
     // Ambil bobot KPI dari tabel kpi
+    const kpiIds = data.details.map((d) => d.kpi_id);
     const [kpis] = await conn.query(
       `SELECT kpi_id, bobot FROM master_kpi WHERE kpi_id IN (?)`,
       [kpiIds]
     );
 
-    // Map bobot KPI
     const bobotMap = {};
     kpis.forEach((kpi) => {
       bobotMap[kpi.kpi_id] = kpi.bobot;
@@ -33,7 +29,6 @@ async function createHistoryWithDetails(data) {
     let totalNilai = 0;
     let totalPersen = 0;
 
-    // Insert detail + hitung nilai akhir berdasarkan bobot
     for (const d of data.details) {
       const bobot = bobotMap[d.kpi_id] || 0;
 
@@ -47,7 +42,6 @@ async function createHistoryWithDetails(data) {
       totalPersen += d.persen_real * (bobot / 100);
     }
 
-    // Update nilai_akhir & persen_akhir di history_kpi
     await conn.execute(
       `UPDATE history_kpi SET nilai_akhir = ?, persen_akhir = ? WHERE history_id = ?`,
       [totalNilai, totalPersen, historyId]
@@ -69,7 +63,7 @@ async function createHistoryWithDetails(data) {
   }
 }
 
-// LIST HISTORY KPI DENGAN FILTER
+// List history dengan filter
 async function listHistory(filters = {}) {
   const {
     periode_from,
@@ -95,11 +89,11 @@ async function listHistory(filters = {}) {
   }
   if (user_id) {
     where.push("hk.user_id = ?");
-    params.push(user_id);
+    params.push(Number(user_id));
   }
   if (divisi_id) {
     where.push("u.divisi_id = ?");
-    params.push(divisi_id);
+    params.push(Number(divisi_id));
   }
   if (jabatan) {
     where.push("u.jabatan = ?");
@@ -137,12 +131,13 @@ async function listHistory(filters = {}) {
   const [rows] = await db.execute(sql, execParams);
   const [countRows] = await db.execute(countSql, params);
 
-  const total = countRows[0] ? Number(countRows[0].total) : 0;
-
-  return { rows, total };
+  return {
+    rows: rows || [],
+    total: countRows[0] ? Number(countRows[0].total) : 0,
+  };
 }
 
-// GET DETAIL HISTORY (BY ID)
+// Get detail history
 async function getHistoryDetail(history_id) {
   const sql = `
     SELECT hk.history_id, hk.user_id, hk.periode, hk.nilai_akhir, hk.persen_akhir,
@@ -159,7 +154,7 @@ async function getHistoryDetail(history_id) {
     WHERE hk.history_id = ?
   `;
 
-  const [rows] = await db.execute(sql, [history_id]);
+  const [rows] = await db.execute(sql, [Number(history_id)]);
 
   if (!rows.length) return null;
 
