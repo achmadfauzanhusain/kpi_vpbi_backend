@@ -47,6 +47,9 @@ async function createHistoryWithDetails(data) {
       [totalNilai, totalPersen, historyId]
     );
 
+    console.log("kpiIds:", kpiIds);
+    console.log("params:", [kpiIds]);
+
     await conn.commit();
     return {
       id: historyId,
@@ -130,6 +133,7 @@ async function listHistory(filters = {}) {
 
   const [rows] = await db.execute(sql, execParams);
   const [countRows] = await db.execute(countSql, params);
+  console.log("Params for listHistory:", execParams);
 
   return {
     rows: rows || [],

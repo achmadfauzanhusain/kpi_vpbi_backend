@@ -16,7 +16,7 @@ app.use(
     origin: process.env.FRONTEND_URL,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true, // kalau pakai cookie/session
+    credentials: true,
   })
 );
 
