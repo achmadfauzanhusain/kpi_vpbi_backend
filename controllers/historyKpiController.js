@@ -69,14 +69,21 @@ const listHistory = async (req, res) => {
     const { role, user_id, divisi_id } = req.user || {};
     let filters = { ...req.query };
 
-    // Role-based filter
-    if (role === "admin" && divisi_id) {
-      filters.divisi_id = divisi_id;
-    } else if (role === "karyawan" && user_id) {
-      filters.user_id = user_id;
+    // Apply role-based filters
+    if (role === "admin") {
+      // admin dibatasi divisinya kecuali override manual pakai query param
+      if (!filters.divisi_id && divisi_id) {
+        filters.divisi_id = divisi_id;
+      }
+    } else if (role === "karyawan") {
+      // karyawan dibatasi user_id kecuali override manual pakai query param
+      if (!filters.user_id && user_id) {
+        filters.user_id = user_id;
+      }
     }
+    // superadmin tidak diubah → bebas pakai query apa pun
 
-    // Sanitize filters (hapus key yang kosong/null/undefined)
+    // Sanitize filters
     Object.keys(filters).forEach((key) => {
       if (
         filters[key] === undefined ||
@@ -96,6 +103,9 @@ const listHistory = async (req, res) => {
       data: histories.rows || [],
       total: histories.total || 0,
     });
+
+    console.log("Incoming query params:", req.query);
+    console.log("Final filters sent to model:", filters);
   } catch (err) {
     console.error("Error listHistory:", err);
     res.status(500).json({

@@ -6,26 +6,36 @@ async function createHistoryWithDetails(data) {
   try {
     await conn.beginTransaction();
 
+    // Insert header history
     const [historyResult] = await conn.execute(
-      `INSERT INTO history_kpi (user_id, periode, user_id_acc, nilai_akhir, persen_akhir, created_at, updated_at) 
+      `INSERT INTO history_kpi 
+        (user_id, periode, user_id_acc, nilai_akhir, persen_akhir, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
       [data.user_id, data.periode, data.user_id_acc, 0, 0]
     );
 
     const historyId = historyResult.insertId;
+    console.log("[createHistoryWithDetails] New historyId:", historyId);
 
-    // Ambil bobot KPI dari tabel kpi
+    // Ambil bobot KPI dari tabel master_kpi
     const kpiIds = data.details.map((d) => d.kpi_id);
-    const [kpis] = await conn.query(
-      `SELECT kpi_id, bobot FROM master_kpi WHERE kpi_id IN (?)`,
-      [kpiIds]
-    );
+    let bobotMap = {};
 
-    const bobotMap = {};
-    kpis.forEach((kpi) => {
-      bobotMap[kpi.kpi_id] = kpi.bobot;
-    });
+    if (kpiIds.length > 0) {
+      const [kpis] = await conn.query(
+        `SELECT kpi_id, bobot FROM master_kpi WHERE kpi_id IN (?)`,
+        [kpiIds]
+      );
+      kpis.forEach((kpi) => {
+        bobotMap[kpi.kpi_id] = kpi.bobot;
+      });
+      console.log("[createHistoryWithDetails] kpiIds:", kpiIds);
+      console.log("[createHistoryWithDetails] bobotMap:", bobotMap);
+    } else {
+      console.warn("[createHistoryWithDetails] ⚠️ kpiIds kosong!");
+    }
 
+    // Insert details + kalkulasi
     let totalNilai = 0;
     let totalPersen = 0;
 
@@ -33,7 +43,8 @@ async function createHistoryWithDetails(data) {
       const bobot = bobotMap[d.kpi_id] || 0;
 
       await conn.execute(
-        `INSERT INTO history_kpi_detail (history_kpi_id, kpi_id, nilai_real, persen_real, created_at) 
+        `INSERT INTO history_kpi_detail 
+          (history_kpi_id, kpi_id, nilai_real, persen_real, created_at) 
          VALUES (?, ?, ?, ?, NOW())`,
         [historyId, d.kpi_id, d.nilai_real, d.persen_real]
       );
@@ -42,15 +53,21 @@ async function createHistoryWithDetails(data) {
       totalPersen += d.persen_real * (bobot / 100);
     }
 
+    // Update header dengan hasil akhir
     await conn.execute(
-      `UPDATE history_kpi SET nilai_akhir = ?, persen_akhir = ? WHERE history_id = ?`,
+      `UPDATE history_kpi 
+       SET nilai_akhir = ?, persen_akhir = ? 
+       WHERE history_id = ?`,
       [totalNilai, totalPersen, historyId]
     );
 
-    console.log("kpiIds:", kpiIds);
-    console.log("params:", [kpiIds]);
-
     await conn.commit();
+    console.log("[createHistoryWithDetails] Success:", {
+      historyId,
+      totalNilai,
+      totalPersen,
+    });
+
     return {
       id: historyId,
       ...data,
@@ -59,7 +76,7 @@ async function createHistoryWithDetails(data) {
     };
   } catch (error) {
     await conn.rollback();
-    console.error("Error createHistoryWithDetails:", error);
+    console.error("❌ Error createHistoryWithDetails:", error);
     throw error;
   } finally {
     conn.release();
@@ -131,9 +148,14 @@ async function listHistory(filters = {}) {
 
   const execParams = [...params, Number(limit), Number(offset)];
 
+  console.log("[listHistory] whereSQL:", whereSQL);
+  console.log("[listHistory] execParams:", execParams);
+  console.log("Filters divisi_id:", divisi_id);
+  console.log("Params array:", params);
+  console.log("Final SQL:", sql);
+
   const [rows] = await db.execute(sql, execParams);
   const [countRows] = await db.execute(countSql, params);
-  console.log("Params for listHistory:", execParams);
 
   return {
     rows: rows || [],
@@ -159,6 +181,7 @@ async function getHistoryDetail(history_id) {
   `;
 
   const [rows] = await db.execute(sql, [Number(history_id)]);
+  console.log("[getHistoryDetail] rows length:", rows.length);
 
   if (!rows.length) return null;
 
