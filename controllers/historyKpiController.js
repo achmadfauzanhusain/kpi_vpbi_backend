@@ -99,9 +99,13 @@ const listHistory = async (req, res) => {
     console.log("[listHistory] Final filters:", filters);
   } catch (err) {
     console.error("[listHistory] Error:", err.message, err.sqlMessage || "");
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: err.message });
+    res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+      stack: err.stack, // tambahin stack trace
+      sql: err.sql, // tambahin SQL kalau ada
+      sqlMessage: err.sqlMessage,
+    });
   }
 };
 
