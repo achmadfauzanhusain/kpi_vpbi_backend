@@ -2,7 +2,7 @@ const HistoryKpi = require("../models/historyKpiModel");
 const db = require("../config/connection");
 const { sendMail, newDataNotificationTemplate } = require("../config/mailer");
 
-// Create History (Admin / Superadmin)
+// Create History
 const createHistory = async (req, res) => {
   try {
     const { user_id, periode, user_id_acc, details } = req.body;
@@ -17,7 +17,6 @@ const createHistory = async (req, res) => {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
-    // Simpan ke DB lewat model
     const history = await HistoryKpi.createHistoryWithDetails({
       user_id,
       periode,
@@ -25,7 +24,7 @@ const createHistory = async (req, res) => {
       details,
     });
 
-    // Ambil email user (optional, bisa gagal tanpa stop proses utama)
+    // Kirim email (optional)
     try {
       const [userRows] = await db.execute(
         `SELECT email, fullname FROM users WHERE user_id = ?`,
@@ -34,7 +33,6 @@ const createHistory = async (req, res) => {
 
       if (userRows.length > 0) {
         const { email: userEmail, fullname: userNama } = userRows[0];
-
         await sendMail({
           to: userEmail,
           subject: "📢 KPI Baru Ditambahkan",
@@ -47,7 +45,7 @@ const createHistory = async (req, res) => {
         });
       }
     } catch (mailErr) {
-      console.error("Gagal mengirim email:", mailErr);
+      console.error("[createHistory] Gagal kirim email:", mailErr.message);
     }
 
     res.status(201).json({
@@ -55,35 +53,28 @@ const createHistory = async (req, res) => {
       data: history,
     });
   } catch (err) {
-    console.error("Error createHistory:", err);
-    res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
+    console.error("[createHistory] Error:", err);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 };
 
-// Get All Histories (Role-based filter)
+// Get All Histories
 const listHistory = async (req, res) => {
   try {
     const { role, user_id, divisi_id } = req.user || {};
     let filters = { ...req.query };
 
-    // Apply role-based filters
-    if (role === "admin") {
-      // admin dibatasi divisinya kecuali override manual pakai query param
-      if (!filters.divisi_id && divisi_id) {
-        filters.divisi_id = divisi_id;
-      }
-    } else if (role === "karyawan") {
-      // karyawan dibatasi user_id kecuali override manual pakai query param
-      if (!filters.user_id && user_id) {
-        filters.user_id = user_id;
-      }
+    // Role-based filter
+    if (role === "admin" && divisi_id) {
+      filters.divisi_id = filters.divisi_id || divisi_id;
+    } else if (role === "karyawan" && user_id) {
+      filters.user_id = filters.user_id || user_id;
     }
-    // superadmin tidak diubah → bebas pakai query apa pun
+    // superadmin = bebas
 
-    // Sanitize filters
+    // Bersihin filter kosong/null
     Object.keys(filters).forEach((key) => {
       if (
         filters[key] === undefined ||
@@ -104,14 +95,13 @@ const listHistory = async (req, res) => {
       total: histories.total || 0,
     });
 
-    console.log("Incoming query params:", req.query);
-    console.log("Final filters sent to model:", filters);
+    console.log("[listHistory] Incoming query:", req.query);
+    console.log("[listHistory] Final filters:", filters);
   } catch (err) {
-    console.error("Error listHistory:", err);
-    res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
+    console.error("[listHistory] Error:", err.message, err.sqlMessage || "");
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 };
 
@@ -125,16 +115,14 @@ const getHistoryDetail = async (req, res) => {
       return res.status(404).json({ message: "History not found" });
     }
 
-    res.status(200).json({
-      message: "History fetched successfully",
-      data: history,
-    });
+    res
+      .status(200)
+      .json({ message: "History fetched successfully", data: history });
   } catch (err) {
-    console.error("Error getHistoryDetail:", err);
-    res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
+    console.error("[getHistoryDetail] Error:", err);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 };
 
