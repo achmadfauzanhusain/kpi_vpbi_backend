@@ -73,7 +73,7 @@ async function listKpi({ divisi_id, search, limit = 20, offset = 0 }) {
     FROM master_kpi 
     ${whereSQL} 
     ORDER BY created_at DESC 
-    LIMIT ? OFFSET ?
+    LIMIT ?, ?
   `;
 
   const execParams = [
