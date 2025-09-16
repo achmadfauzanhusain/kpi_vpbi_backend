@@ -15,13 +15,19 @@ async function createHistoryWithDetails(data) {
       `INSERT INTO history_kpi 
         (user_id, periode, user_id_acc, nilai_akhir, persen_akhir, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-      [data.user_id, data.periode, data.user_id_acc, 0, 0]
+      [
+        Number(data.user_id),
+        data.periode,
+        Number(data.user_id_acc) || null,
+        0,
+        0,
+      ]
     );
 
     const historyId = historyResult.insertId;
 
     // Ambil bobot KPI dari tabel master_kpi
-    const kpiIds = data.details.map((d) => d.kpi_id);
+    const kpiIds = data.details.map((d) => Number(d.kpi_id)).filter(Boolean);
     let bobotMap = {};
 
     if (kpiIds.length > 0) {
@@ -40,17 +46,18 @@ async function createHistoryWithDetails(data) {
     let totalPersen = 0;
 
     for (const d of data.details) {
-      const bobot = bobotMap[d.kpi_id] || 0;
+      const kpiId = Number(d.kpi_id);
+      const bobot = bobotMap[kpiId] || 0;
 
       await conn.execute(
         `INSERT INTO history_kpi_detail 
           (history_kpi_id, kpi_id, nilai_real, persen_real, created_at) 
          VALUES (?, ?, ?, ?, NOW())`,
-        [historyId, d.kpi_id, d.nilai_real, d.persen_real]
+        [historyId, kpiId, Number(d.nilai_real), Number(d.persen_real)]
       );
 
-      totalNilai += d.nilai_real * (bobot / 100);
-      totalPersen += d.persen_real * (bobot / 100);
+      totalNilai += Number(d.nilai_real) * (bobot / 100);
+      totalPersen += Number(d.persen_real) * (bobot / 100);
     }
 
     await conn.execute(
@@ -139,20 +146,20 @@ async function listHistory(filters = {}) {
     ${whereSQL}
   `;
 
-  // ✅ Pastikan limit & offset integer
   const execParams = [...params, Number(limit), Number(offset)];
 
-  console.log("[listHistory] whereSQL:", whereSQL);
-  console.log("[listHistory] params:", params);
-  console.log("[listHistory] execParams:", execParams);
+  try {
+    const [rows] = await db.execute(sql, execParams);
+    const [countRows] = await db.execute(countSql, params);
 
-  const [rows] = await db.execute(sql, execParams);
-  const [countRows] = await db.execute(countSql, params);
-
-  return {
-    rows: rows || [],
-    total: countRows[0] ? Number(countRows[0].total) : 0,
-  };
+    return {
+      rows: rows || [],
+      total: countRows[0] ? Number(countRows[0].total) : 0,
+    };
+  } catch (err) {
+    console.error("[listHistory] SQL Error:", err);
+    throw err;
+  }
 }
 
 // Get detail history

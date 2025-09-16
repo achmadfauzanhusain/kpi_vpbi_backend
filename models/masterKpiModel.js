@@ -5,11 +5,11 @@ async function createKpi({ divisi_id, indikator, satuan, target, bobot }) {
     (divisi_id, indikator, satuan, target, bobot, created_at) 
     VALUES (?, ?, ?, ?, ?, NOW())`;
   const [result] = await db.execute(query, [
-    divisi_id,
+    Number(divisi_id),
     indikator,
     satuan,
-    target,
-    bobot,
+    Number(target),
+    Number(bobot),
   ]);
   return result.insertId;
 }
@@ -20,11 +20,15 @@ async function updateKpi(kpi_id, data) {
   for (const key of ["divisi_id", "indikator", "satuan", "target", "bobot"]) {
     if (key in data) {
       fields.push(`${key} = ?`);
-      values.push(data[key]);
+      if (["divisi_id", "target", "bobot"].includes(key)) {
+        values.push(Number(data[key]));
+      } else {
+        values.push(data[key]);
+      }
     }
   }
   if (!fields.length) return null;
-  values.push(kpi_id);
+  values.push(Number(kpi_id));
   const query = `UPDATE master_kpi SET ${fields.join(", ")} WHERE kpi_id = ?`;
   await db.execute(query, values);
   return true;
@@ -32,13 +36,13 @@ async function updateKpi(kpi_id, data) {
 
 async function deleteKpi(kpi_id) {
   const query = `UPDATE master_kpi SET deleted_at = NOW() WHERE kpi_id = ?`;
-  await db.execute(query, [kpi_id]);
+  await db.execute(query, [Number(kpi_id)]);
   return true;
 }
 
 async function getKpiById(kpi_id) {
   const [rows] = await db.execute(`SELECT * FROM master_kpi WHERE kpi_id = ?`, [
-    kpi_id,
+    Number(kpi_id),
   ]);
   return rows[0] || null;
 }
@@ -49,7 +53,7 @@ async function listKpi({ divisi_id, search, limit = 20, offset = 0 }) {
   const params = [];
   if (divisi_id) {
     where.push("divisi_id = ?");
-    params.push(divisi_id);
+    params.push(Number(divisi_id));
   }
   if (search) {
     where.push("indikator LIKE ?");
