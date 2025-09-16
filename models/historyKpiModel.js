@@ -85,7 +85,7 @@ async function createHistoryWithDetails(data) {
 
 // List history dengan filter
 async function listHistory(filters = {}) {
-  const {
+  let {
     periode_from,
     periode_to,
     divisi_id,
@@ -107,11 +107,11 @@ async function listHistory(filters = {}) {
     where.push("hk.periode <= ?");
     params.push(periode_to);
   }
-  if (user_id) {
+  if (user_id && !isNaN(Number(user_id))) {
     where.push("hk.user_id = ?");
     params.push(Number(user_id));
   }
-  if (divisi_id) {
+  if (divisi_id && !isNaN(Number(divisi_id))) {
     where.push("u.divisi_id = ?");
     params.push(Number(divisi_id));
   }
@@ -146,20 +146,27 @@ async function listHistory(filters = {}) {
     ${whereSQL}
   `;
 
-  const execParams = [...params, Number(limit), Number(offset)];
+  // pastikan limit & offset valid integer
+  const safeLimit = Number(limit);
+  const safeOffset = Number(offset);
 
-  try {
-    const [rows] = await db.execute(sql, execParams);
-    const [countRows] = await db.execute(countSql, params);
+  const execParams = [
+    ...params,
+    isNaN(safeLimit) ? 20 : safeLimit,
+    isNaN(safeOffset) ? 0 : safeOffset,
+  ];
 
-    return {
-      rows: rows || [],
-      total: countRows[0] ? Number(countRows[0].total) : 0,
-    };
-  } catch (err) {
-    console.error("[listHistory] SQL Error:", err);
-    throw err;
-  }
+  console.log("[listHistory] whereSQL:", whereSQL);
+  console.log("[listHistory] params:", params);
+  console.log("[listHistory] execParams:", execParams);
+
+  const [rows] = await db.execute(sql, execParams);
+  const [countRows] = await db.execute(countSql, params);
+
+  return {
+    rows: rows || [],
+    total: countRows[0] ? Number(countRows[0].total) : 0,
+  };
 }
 
 // Get detail history
