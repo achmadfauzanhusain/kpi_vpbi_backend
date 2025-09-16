@@ -51,18 +51,41 @@ async function getKpiById(kpi_id) {
 async function listKpi({ divisi_id, search, limit = 20, offset = 0 }) {
   const where = ["deleted_at IS NULL"];
   const params = [];
-  if (divisi_id) {
+
+  if (divisi_id && !isNaN(Number(divisi_id))) {
     where.push("divisi_id = ?");
     params.push(Number(divisi_id));
   }
+
   if (search) {
     where.push("indikator LIKE ?");
     params.push(`%${search}%`);
   }
+
   const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const query = `SELECT * FROM master_kpi ${whereSQL} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-  params.push(Number(limit), Number(offset));
-  const [rows] = await db.execute(query, params);
+
+  // pastikan integer
+  const safeLimit = Number(limit);
+  const safeOffset = Number(offset);
+
+  const query = `
+    SELECT * 
+    FROM master_kpi 
+    ${whereSQL} 
+    ORDER BY created_at DESC 
+    LIMIT ? OFFSET ?
+  `;
+
+  const execParams = [
+    ...params,
+    isNaN(safeLimit) ? 20 : safeLimit,
+    isNaN(safeOffset) ? 0 : safeOffset,
+  ];
+
+  console.log("[listKpi] SQL:", query);
+  console.log("[listKpi] execParams:", execParams);
+
+  const [rows] = await db.execute(query, execParams);
   return rows;
 }
 
