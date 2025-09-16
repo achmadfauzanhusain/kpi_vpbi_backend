@@ -78,8 +78,8 @@ async function listKpi({ divisi_id, search, limit = 20, offset = 0 }) {
 
   const execParams = [
     ...params,
-    isNaN(safeLimit) ? 20 : safeLimit,
     isNaN(safeOffset) ? 0 : safeOffset,
+    isNaN(safeLimit) ? 20 : safeLimit,
   ];
 
   console.log("[listKpi] SQL:", query);
