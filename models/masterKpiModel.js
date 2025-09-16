@@ -64,29 +64,40 @@ async function listKpi({ divisi_id, search, limit = 20, offset = 0 }) {
 
   const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-  // pastikan integer
-  const safeLimit = Number(limit);
-  const safeOffset = Number(offset);
+  const safeLimit = Number(limit) || 20;
+  const safeOffset = Number(offset) || 0;
 
+  // Query data utama
   const query = `
     SELECT * 
     FROM master_kpi 
     ${whereSQL} 
     ORDER BY created_at DESC 
-    LIMIT ?, ?
+    LIMIT ${safeOffset}, ${safeLimit}
   `;
 
-  const execParams = [
-    ...params,
-    isNaN(safeOffset) ? 0 : safeOffset,
-    isNaN(safeLimit) ? 20 : safeLimit,
-  ];
-
   console.log("[listKpi] SQL:", query);
-  console.log("[listKpi] execParams:", execParams);
+  console.log("[listKpi] params:", params);
 
-  const [rows] = await db.execute(query, execParams);
-  return rows;
+  const [rows] = await db.execute(query, params);
+
+  // Query total untuk pagination
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM master_kpi 
+    ${whereSQL}
+  `;
+
+  const [countResult] = await db.execute(countQuery, params);
+  const total = countResult[0].total;
+
+  return {
+    rows,
+    total,
+    limit: safeLimit,
+    offset: safeOffset,
+    totalPages: Math.ceil(total / safeLimit),
+  };
 }
 
 module.exports = { createKpi, updateKpi, deleteKpi, getKpiById, listKpi };
