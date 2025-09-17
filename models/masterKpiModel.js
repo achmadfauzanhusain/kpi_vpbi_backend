@@ -51,53 +51,19 @@ async function getKpiById(kpi_id) {
 async function listKpi({ divisi_id, search, limit = 20, offset = 0 }) {
   const where = ["deleted_at IS NULL"];
   const params = [];
-
-  if (divisi_id && !isNaN(Number(divisi_id))) {
+  if (divisi_id) {
     where.push("divisi_id = ?");
     params.push(Number(divisi_id));
   }
-
   if (search) {
     where.push("indikator LIKE ?");
     params.push(`%${search}%`);
   }
-
   const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  const safeLimit = Number(limit) || 20;
-  const safeOffset = Number(offset) || 0;
-
-  // Query data utama
-  const query = `
-    SELECT * 
-    FROM master_kpi 
-    ${whereSQL} 
-    ORDER BY created_at DESC 
-    LIMIT ${safeOffset}, ${safeLimit}
-  `;
-
-  console.log("[listKpi] SQL:", query);
-  console.log("[listKpi] params:", params);
-
+  const query = `SELECT * FROM master_kpi ${whereSQL} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+  params.push(Number(limit), Number(offset));
   const [rows] = await db.execute(query, params);
-
-  // Query total untuk pagination
-  const countQuery = `
-    SELECT COUNT(*) as total
-    FROM master_kpi 
-    ${whereSQL}
-  `;
-
-  const [countResult] = await db.execute(countQuery, params);
-  const total = countResult[0].total;
-
-  return {
-    rows,
-    total,
-    limit: safeLimit,
-    offset: safeOffset,
-    totalPages: Math.ceil(total / safeLimit),
-  };
+  return rows;
 }
 
 module.exports = { createKpi, updateKpi, deleteKpi, getKpiById, listKpi };
