@@ -126,10 +126,6 @@ async function listHistory(filters = {}) {
 
   const whereSQL = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
-  // pastikan limit & offset valid integer
-  const safeLimit = Number.isInteger(Number(limit)) ? Number(limit) : 20;
-  const safeOffset = Number.isInteger(Number(offset)) ? Number(offset) : 0;
-
   const sql = `
     SELECT hk.history_id, hk.user_id, hk.periode, hk.nilai_akhir, hk.persen_akhir,
            hk.user_id_acc, hk.created_at, hk.updated_at,
@@ -140,7 +136,7 @@ async function listHistory(filters = {}) {
     LEFT JOIN users ua ON ua.user_id = hk.user_id_acc
     ${whereSQL}
     ORDER BY hk.periode DESC, hk.created_at DESC
-    LIMIT ${safeLimit} OFFSET ${safeOffset}
+    LIMIT ${limit} OFFSET ${offset}
   `;
 
   const countSql = `
@@ -152,10 +148,6 @@ async function listHistory(filters = {}) {
 
   const [rows] = await db.execute(sql, params);
   const [countRows] = await db.execute(countSql, params);
-
-  console.log("[listHistory] whereSQL:", whereSQL);
-  console.log("[listHistory] params:", params);
-  console.log("[listHistory] safeLimit:", safeLimit, "safeOffset:", safeOffset);
 
   return {
     rows: rows || [],
